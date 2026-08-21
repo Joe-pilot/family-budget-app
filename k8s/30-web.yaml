@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: budget-web
+  namespace: family-budget
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: budget-web }
+  template:
+    metadata:
+      labels: { app: budget-web }
+    spec:
+      containers:
+        - name: budget-web
+          image: family-budget/web:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: API_BASE_URL
+              valueFrom:
+                configMapKeyRef: { name: budget-config, key: WEB_API_BASE_URL }
+            - name: DEFAULT_CURRENCY
+              valueFrom:
+                configMapKeyRef: { name: budget-config, key: DEFAULT_CURRENCY }
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef: { name: budget-secrets, key: API_KEY }
+          resources:
+            requests: { cpu: "50m", memory: "32Mi" }
+            limits: { cpu: "100m", memory: "64Mi" }
+          readinessProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: budget-web
+  namespace: family-budget
+spec:
+  type: NodePort
+  selector: { app: budget-web }
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080

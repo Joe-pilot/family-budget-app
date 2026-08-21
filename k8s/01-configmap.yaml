@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: budget-config
+  namespace: family-budget
+data:
+  DEFAULT_CURRENCY: "SAR"
+  TIMEZONE: "Asia/Riyadh"
+
+  # Ollama model to use for parsing. llama3.2:3b is a good default — fast on
+  # CPU, plenty accurate for mapping a sentence onto a fixed category list.
+  # Step up to qwen2.5:7b or llama3.1:8b if you see it misfiring and have the
+  # RAM (see k8s/50-ollama.yaml resource requests).
+  OLLAMA_MODEL: "llama3.2:3b"
+
+  # Cluster-internal DNS names — these work as-is, no editing needed.
+  OLLAMA_HOST: "http://ollama:11434"
+  TELEGRAM_API_BASE_URL: "http://budget-api:8000"
+
+  # Browser-facing API address — the web UI's JS runs on family members'
+  # phones/laptops, OUTSIDE the cluster, so it needs an address reachable
+  # from your LAN, not the cluster-internal DNS name above.
+  # EDIT THIS after you know your NodePort / MetalLB IP / OPNsense DNS
+  # override (see README "Expose it" section). Examples:
+  #   http://10.10.20.50:30081        (NodePort, raw node IP)
+  #   http://budget-api.home.arpa:30081   (with an OPNsense Host Override)
+  WEB_API_BASE_URL: "http://CHANGE-ME:30081"

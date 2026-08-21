@@ -1,0 +1,5 @@
+window.CONFIG = {
+  API_BASE: "${API_BASE_URL}",
+  CURRENCY: "${DEFAULT_CURRENCY}",
+  API_KEY: "${API_KEY}"
+};

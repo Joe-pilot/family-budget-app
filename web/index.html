@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Family Budget — 2026</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">◆</span>
+      <span class="brand-name">Family Budget</span>
+      <span class="brand-year" id="year-badge">2026</span>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="monthly">Monthly</button>
+      <button class="tab" data-tab="transactions">Transactions</button>
+      <button class="tab" data-tab="budget">Budget</button>
+    </nav>
+  </header>
+
+  <form class="quickadd" id="quickadd-form">
+    <span class="quickadd-icon">✎</span>
+    <input id="quickadd-input" type="text" autocomplete="off"
+      placeholder="Type it like you'd say it — “spent 45 on groceries today” — Enter to log" />
+    <button type="submit">Log</button>
+  </form>
+  <div id="quickadd-feedback" class="quickadd-feedback"></div>
+
+  <main id="view" class="view"></main>
+</div>
+
+<template id="tpl-dashboard">
+  <section class="grid-dash">
+    <div class="card kpi-row">
+      <div class="kpi">
+        <div class="kpi-label">YTD Income</div>
+        <div class="kpi-value income" id="kpi-income">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">YTD Expenses</div>
+        <div class="kpi-value expense" id="kpi-expense">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">YTD Savings</div>
+        <div class="kpi-value savings" id="kpi-savings">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Net</div>
+        <div class="kpi-value net" id="kpi-net">—</div>
+      </div>
+    </div>
+
+    <div class="card span-2">
+      <h3>Monthly trend</h3>
+      <canvas id="chart-trend" height="90"></canvas>
+    </div>
+
+    <div class="card">
+      <h3>YTD expenses by category</h3>
+      <canvas id="chart-categories" height="220"></canvas>
+    </div>
+
+    <div class="card span-3">
+      <h3>Category breakdown</h3>
+      <div id="category-table"></div>
+    </div>
+  </section>
+</template>
+
+<template id="tpl-monthly">
+  <section class="grid-monthly">
+    <div class="card toolbar-card">
+      <label>Month
+        <select id="month-select"></select>
+      </label>
+    </div>
+
+    <div class="card kpi-row">
+      <div class="kpi">
+        <div class="kpi-label">Income (Actual / Plan)</div>
+        <div class="kpi-value income" id="m-income">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Expenses (Actual / Plan)</div>
+        <div class="kpi-value expense" id="m-expense">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Savings (Actual / Plan)</div>
+        <div class="kpi-value savings" id="m-savings">—</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Net cash flow</div>
+        <div class="kpi-value net" id="m-net">—</div>
+      </div>
+    </div>
+
+    <div class="card span-3">
+      <div class="detail-tabs" id="detail-tabs">
+        <button class="chip active" data-type="income">Income</button>
+        <button class="chip" data-type="expense">Expenses</button>
+        <button class="chip" data-type="savings">Savings</button>
+      </div>
+      <div id="detail-table"></div>
+    </div>
+  </section>
+</template>
+
+<template id="tpl-transactions">
+  <section class="grid-transactions">
+    <div class="card">
+      <h3>Add a transaction manually</h3>
+      <form id="txn-form" class="txn-form">
+        <label>Date <input type="date" name="date" required /></label>
+        <label>Type
+          <select name="type" required>
+            <option value="Expense">Expense</option>
+            <option value="Income">Income</option>
+            <option value="Savings">Savings</option>
+          </select>
+        </label>
+        <label>Category <select name="category" required></select></label>
+        <label>Subcategory <select name="subcategory" required></select></label>
+        <label><span>Amount (<span class="cur"></span>)</span><input type="number" name="amount" min="0.01" step="0.01" required /></label>
+        <label>Payment method
+          <select name="payment_method">
+            <option value=""></option>
+          </select>
+        </label>
+        <label class="wide">Description <input type="text" name="description" placeholder="optional" /></label>
+        <button type="submit">Add transaction</button>
+      </form>
+    </div>
+
+    <div class="card span-2">
+      <div class="toolbar">
+        <h3>Recent transactions</h3>
+        <label class="filter">Filter by category
+          <select id="txn-filter"><option value="">All</option></select>
+        </label>
+      </div>
+      <div id="txn-table"></div>
+    </div>
+  </section>
+</template>
+
+<template id="tpl-budget">
+  <section class="grid-budget">
+    <div class="card span-3">
+      <h3>2026 monthly targets</h3>
+      <p class="muted">Set what you plan to spend each month per category. Every monthly view compares Actual against this.</p>
+      <div id="budget-table"></div>
+    </div>
+  </section>
+</template>
+
+<script src="chart.umd.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

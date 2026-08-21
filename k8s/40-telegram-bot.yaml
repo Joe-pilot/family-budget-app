@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telegram-bot
+  namespace: family-budget
+spec:
+  replicas: 1   # exactly one — two replicas would both long-poll Telegram
+                # and double-handle every message
+  selector:
+    matchLabels: { app: telegram-bot }
+  template:
+    metadata:
+      labels: { app: telegram-bot }
+    spec:
+      containers:
+        - name: telegram-bot
+          image: family-budget/telegram-bot:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom:
+                secretKeyRef: { name: budget-secrets, key: TELEGRAM_BOT_TOKEN }
+            - name: ALLOWED_TELEGRAM_USER_IDS
+              valueFrom:
+                secretKeyRef: { name: budget-secrets, key: ALLOWED_TELEGRAM_USER_IDS }
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef: { name: budget-secrets, key: API_KEY }
+            - name: API_BASE_URL
+              valueFrom:
+                configMapKeyRef: { name: budget-config, key: TELEGRAM_API_BASE_URL }
+            - name: DEFAULT_CURRENCY
+              valueFrom:
+                configMapKeyRef: { name: budget-config, key: DEFAULT_CURRENCY }
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits: { cpu: "100m", memory: "128Mi" }

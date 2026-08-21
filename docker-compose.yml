@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: budget
+      POSTGRES_PASSWORD: budget
+      POSTGRES_DB: budget
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U budget"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    # First run: docker compose exec ollama ollama pull llama3.2:3b
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql+psycopg2://budget:budget@postgres:5432/budget
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: llama3.2:3b
+      DEFAULT_CURRENCY: SAR
+      TIMEZONE: Asia/Riyadh
+      API_KEY: ""
+    ports:
+      - "8000:8000"
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    depends_on: [api]
+    environment:
+      API_BASE_URL: http://localhost:8000
+      DEFAULT_CURRENCY: SAR
+      API_KEY: ""
+    ports:
+      - "8080:8080"
+
+  telegram-bot:
+    build: ./telegram-bot
+    restart: unless-stopped
+    depends_on: [api]
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?set this in .env}
+      ALLOWED_TELEGRAM_USER_IDS: ${ALLOWED_TELEGRAM_USER_IDS:-}
+      API_BASE_URL: http://api:8000
+      DEFAULT_CURRENCY: SAR
+      API_KEY: ""
+
+volumes:
+  postgres_data:
+  ollama_data:

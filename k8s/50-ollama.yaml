@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-models
+  namespace: family-budget
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 15Gi   # room for a couple of models; llama3.2:3b alone is ~2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: family-budget
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: ollama }
+  template:
+    metadata:
+      labels: { app: ollama }
+    spec:
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          ports:
+            - containerPort: 11434
+          volumeMounts:
+            - name: models
+              mountPath: /root/.ollama
+          resources:
+            # This is the resource-hungry pod in the whole system — everything
+            # else together needs less than this alone. See the README's
+            # "bill of materials" note on picking a model size that fits
+            # your node.
+            requests: { cpu: "2000m", memory: "6Gi" }
+            limits: { cpu: "4000m", memory: "8Gi" }
+          readinessProbe:
+            httpGet: { path: /, port: 11434 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: 11434 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: models
+          persistentVolumeClaim: { claimName: ollama-models }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: family-budget
+spec:
+  selector: { app: ollama }
+  ports:
+    - port: 11434
+      targetPort: 11434
+---
+# One-time job to pull the model onto the PVC. Needs internet egress once;
+# after this, Ollama runs fully offline. Re-run (delete + apply) if you
+# change OLLAMA_MODEL in the ConfigMap.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ollama-pull-model
+  namespace: family-budget
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: pull
+          image: curlimages/curl:8.10.1
+          command:
+            - sh
+            - -c
+            - |
+              echo "Pulling $OLLAMA_MODEL into the Ollama service — this can take a few minutes on first run…"
+              curl -sf http://ollama:11434/api/pull -d "{\"name\": \"$OLLAMA_MODEL\"}"
+              echo "Done."
+          envFrom:
+            - configMapRef: { name: budget-config }

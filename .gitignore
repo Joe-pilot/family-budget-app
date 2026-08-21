@@ -1,0 +1,5 @@
+.env
+k8s/02-secrets.local.yaml
+web/config.js
+__pycache__/
+*.pyc
