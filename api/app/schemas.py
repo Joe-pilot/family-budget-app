@@ -1,54 +1,54 @@
 import datetime as dt
-from pydantic import BaseModel, Field, field_validator
-from .catalog import VALID_TYPES
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from .catalog import PAYMENT_METHODS
+
+MAX_AMOUNT = 999_999_999.99
+
+
+class StrictInput(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
 class CategoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     type: str
     category: str
     subcategory: str
 
-    class Config:
-        from_attributes = True
-
-
 class BudgetItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     type: str
     category: str
     subcategory: str
     monthly_amount: float
 
-    class Config:
-        from_attributes = True
+class BudgetItemUpdate(StrictInput):
+    monthly_amount: float = Field(ge=0, le=MAX_AMOUNT, allow_inf_nan=False)
 
 
-class BudgetItemUpdate(BaseModel):
-    monthly_amount: float = Field(ge=0)
-
-
-class TransactionIn(BaseModel):
+class TransactionIn(StrictInput):
     date: dt.date
-    type: str
-    category: str
-    subcategory: str
-    description: str = ""
-    amount: float = Field(gt=0)
-    payment_method: str = ""
-    notes: str = ""
-    source: str = "web"
-    created_by: str = ""
-
-    @field_validator("type")
-    @classmethod
-    def valid_type(cls, v):
-        if v not in VALID_TYPES:
-            raise ValueError(f"type must be one of {VALID_TYPES}")
-        return v
+    type: Literal["Income", "Expense", "Savings"]
+    category: str = Field(min_length=1, max_length=64)
+    subcategory: str = Field(min_length=1, max_length=64)
+    description: str = Field(default="", max_length=500)
+    amount: float = Field(gt=0, le=MAX_AMOUNT, allow_inf_nan=False)
+    payment_method: Literal["", *PAYMENT_METHODS] = ""
+    notes: str = Field(default="", max_length=1000)
+    source: Literal["web", "telegram", "agent"] = "web"
+    created_by: str = Field(default="", max_length=64)
 
 
 class TransactionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     date: dt.date
     type: str
@@ -61,10 +61,6 @@ class TransactionOut(BaseModel):
     source: str
     created_by: str
     created_at: dt.datetime
-
-    class Config:
-        from_attributes = True
-
 
 class MonthlyTrendPoint(BaseModel):
     year: int
@@ -99,10 +95,10 @@ class CategoryBreakdown(BaseModel):
     pct_of_total: float
 
 
-class AgentRequest(BaseModel):
-    text: str
-    source: str = "agent"
-    created_by: str = ""
+class AgentRequest(StrictInput):
+    text: str = Field(min_length=1, max_length=500)
+    source: Literal["web", "telegram", "agent"] = "agent"
+    created_by: str = Field(default="", max_length=64)
 
 
 class AgentResponse(BaseModel):

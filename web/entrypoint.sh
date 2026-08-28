@@ -6,5 +6,5 @@ set -e
 export API_BASE_URL DEFAULT_CURRENCY API_KEY
 envsubst '${API_BASE_URL} ${DEFAULT_CURRENCY} ${API_KEY}' \
   < /usr/share/nginx/html/config.template.js \
-  > /usr/share/nginx/html/config.js
+  > /tmp/config.js
 exec nginx -g "daemon off;"

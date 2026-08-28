@@ -24,14 +24,22 @@ spec:
     metadata:
       labels: { app: ollama }
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: ollama
           image: ollama/ollama:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
           ports:
             - containerPort: 11434
           volumeMounts:
             - name: models
               mountPath: /root/.ollama
+            - { name: tmp, mountPath: /tmp }
           resources:
             # This is the resource-hungry pod in the whole system — everything
             # else together needs less than this alone. See the README's
@@ -50,6 +58,7 @@ spec:
       volumes:
         - name: models
           persistentVolumeClaim: { claimName: ollama-models }
+        - { name: tmp, emptyDir: {} }
 ---
 apiVersion: v1
 kind: Service
@@ -74,10 +83,18 @@ spec:
   backoffLimit: 2
   template:
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
       restartPolicy: OnFailure
       containers:
         - name: pull
           image: curlimages/curl:8.10.1
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
           command:
             - sh
             - -c

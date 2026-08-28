@@ -24,9 +24,15 @@ function pct(n) {
   return (Number(n || 0) * 100).toFixed(1) + "%";
 }
 
+function escapeHtml(value) {
+  return String(value).replace(/[&<>'"]/g, (char) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
+  })[char]);
+}
+
 async function api(path, opts = {}) {
   const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
-  if (API_KEY && opts.method && opts.method !== "GET") headers["X-API-Key"] = API_KEY;
+  if (API_KEY) headers["X-API-Key"] = API_KEY;
   const res = await fetch(API + path, Object.assign({}, opts, { headers }));
   if (!res.ok) {
     let detail = res.statusText;
@@ -152,7 +158,7 @@ async function renderDashboard(view) {
     <table>
       <thead><tr><th>Category</th><th class="num">YTD Actual</th><th class="num">% of expenses</th></tr></thead>
       <tbody>
-        ${cats.map((c) => `<tr><td>${c.category}</td><td class="num">${fmtInt(c.ytd_actual)}</td><td class="num">${pct(c.pct_of_total)}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">No expenses logged yet.</td></tr>`}
+        ${cats.map((c) => `<tr><td>${escapeHtml(c.category)}</td><td class="num">${fmtInt(c.ytd_actual)}</td><td class="num">${pct(c.pct_of_total)}</td></tr>`).join("") || `<tr><td colspan="3" class="empty">No expenses logged yet.</td></tr>`}
       </tbody>
     </table>`;
   document.getElementById("category-table").innerHTML = tableHtml;
@@ -201,11 +207,11 @@ async function loadMonthDetail(skipFetch) {
   let rows = "";
   let totP = 0, totA = 0;
   for (const [cat, items] of Object.entries(grouped)) {
-    if (Object.keys(grouped).length > 1) rows += `<tr class="group-row"><td colspan="4">${cat}</td></tr>`;
+    if (Object.keys(grouped).length > 1) rows += `<tr class="group-row"><td colspan="4">${escapeHtml(cat)}</td></tr>`;
     for (const l of items) {
       totP += l.projected; totA += l.actual;
       const diffClass = l.difference < 0 ? "neg" : "pos";
-      rows += `<tr><td>${Object.keys(grouped).length > 1 ? "" : cat}</td><td>${l.subcategory}</td>
+      rows += `<tr><td>${Object.keys(grouped).length > 1 ? "" : escapeHtml(cat)}</td><td>${escapeHtml(l.subcategory)}</td>
         <td class="num">${fmtInt(l.projected)}</td><td class="num">${fmtInt(l.actual)}</td>
         <td class="num ${diffClass}">${fmtInt(l.difference)}</td></tr>`;
     }
@@ -240,12 +246,12 @@ async function renderTransactions(view) {
   }
   function refreshCategoryOptions() {
     const cats = categoriesForType(typeSelect.value);
-    catSelect.innerHTML = cats.map((c) => `<option value="${c}">${c}</option>`).join("");
+    catSelect.innerHTML = cats.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
     refreshSubcategoryOptions();
   }
   function refreshSubcategoryOptions() {
     const subs = state.catMap[catSelect.value] || [];
-    subSelect.innerHTML = subs.map((s) => `<option value="${s}">${s}</option>`).join("");
+    subSelect.innerHTML = subs.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join("");
   }
   typeSelect.addEventListener("change", refreshCategoryOptions);
   catSelect.addEventListener("change", refreshSubcategoryOptions);
@@ -253,7 +259,7 @@ async function renderTransactions(view) {
 
   const filterSelect = document.getElementById("txn-filter");
   const allCats = [...new Set(state.categories.map((c) => c.category))];
-  filterSelect.innerHTML = `<option value="">All</option>` + allCats.map((c) => `<option value="${c}">${c}</option>`).join("");
+  filterSelect.innerHTML = `<option value="">All</option>` + allCats.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
   filterSelect.addEventListener("change", () => loadTransactions(filterSelect.value));
 
   form.addEventListener("submit", async (e) => {
@@ -285,12 +291,12 @@ async function loadTransactions(category) {
       <tbody>
         ${rows.map((r) => `
           <tr>
-            <td class="mono">${r.date}</td>
-            <td><span class="pill ${r.type.toLowerCase()}">${r.type}</span></td>
-            <td>${r.category}</td>
-            <td>${r.subcategory}</td>
+            <td class="mono">${escapeHtml(r.date)}</td>
+            <td><span class="pill ${escapeHtml(r.type.toLowerCase())}">${escapeHtml(r.type)}</span></td>
+            <td>${escapeHtml(r.category)}</td>
+            <td>${escapeHtml(r.subcategory)}</td>
             <td class="num">${fmt(r.amount)}</td>
-            <td class="muted">${r.source}</td>
+            <td class="muted">${escapeHtml(r.source)}</td>
             <td><button class="del-btn" data-id="${r.id}">Delete</button></td>
           </tr>`).join("") || `<tr><td colspan="7" class="empty">No transactions yet — add one above, or use the quick-add bar.</td></tr>`}
       </tbody>
@@ -318,17 +324,17 @@ async function renderBudget(view) {
   }
   let rows = "";
   for (const [cat, items] of Object.entries(grouped)) {
-    rows += `<tr class="group-row"><td colspan="3">${cat}</td></tr>`;
+    rows += `<tr class="group-row"><td colspan="3">${escapeHtml(cat)}</td></tr>`;
     for (const b of items) {
       rows += `<tr>
-        <td></td><td>${b.subcategory}</td>
+        <td></td><td>${escapeHtml(b.subcategory)}</td>
         <td class="num"><input type="number" class="budget-input" data-id="${b.id}" min="0" step="1" value="${Number(b.monthly_amount).toFixed(0)}" /></td>
       </tr>`;
     }
   }
   document.getElementById("budget-table").innerHTML = `
     <table>
-      <thead><tr><th>Category</th><th>Subcategory</th><th class="num">Monthly target (${CURRENCY})</th></tr></thead>
+      <thead><tr><th>Category</th><th>Subcategory</th><th class="num">Monthly target (${escapeHtml(CURRENCY)})</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
 
@@ -353,6 +359,6 @@ async function renderBudget(view) {
     await loadCatalog();
     render();
   } catch (err) {
-    document.getElementById("view").innerHTML = `<div class="card"><p class="empty">Couldn't reach the API at ${API}. ${err.message}</p></div>`;
+    document.getElementById("view").innerHTML = `<div class="card"><p class="empty">Couldn't reach the API at ${escapeHtml(API)}. ${escapeHtml(err.message)}</p></div>`;
   }
 })();

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, extract
 
 from ..db import get_db
-from ..models import Transaction
+from ..models import Category, Transaction
 from ..schemas import TransactionIn, TransactionOut
 from ..auth import require_api_key
 
@@ -13,10 +13,10 @@ router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
 @router.get("", response_model=list[TransactionOut])
 def list_transactions(
-    year: int | None = Query(default=None),
-    month: int | None = Query(default=None),
-    category: str | None = Query(default=None),
-    limit: int = Query(default=200, le=2000),
+    year: int | None = Query(default=None, ge=2000, le=2100),
+    month: int | None = Query(default=None, ge=1, le=12),
+    category: str | None = Query(default=None, max_length=64),
+    limit: int = Query(default=200, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
     stmt = select(Transaction).order_by(Transaction.date.desc(), Transaction.id.desc())
@@ -32,6 +32,14 @@ def list_transactions(
 
 @router.post("", response_model=TransactionOut, dependencies=[Depends(require_api_key)])
 def create_transaction(body: TransactionIn, db: Session = Depends(get_db)):
+    category = db.scalar(
+        select(Category).where(
+            Category.category == body.category,
+            Category.subcategory == body.subcategory,
+        )
+    )
+    if not category or category.type != body.type:
+        raise HTTPException(status_code=422, detail="Invalid type/category/subcategory combination")
     txn = Transaction(**body.model_dump())
     db.add(txn)
     db.commit()

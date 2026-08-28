@@ -11,10 +11,20 @@ spec:
     metadata:
       labels: { app: budget-web }
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: budget-web
           image: family-budget/web:latest
           imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
           ports:
             - containerPort: 8080
           env:
@@ -34,6 +44,12 @@ spec:
             httpGet: { path: /, port: 8080 }
             initialDelaySeconds: 3
             periodSeconds: 10
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: nginx-cache, mountPath: /var/cache/nginx }
+      volumes:
+        - { name: tmp, emptyDir: {} }
+        - { name: nginx-cache, emptyDir: {} }
 ---
 apiVersion: v1
 kind: Service

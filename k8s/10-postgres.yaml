@@ -24,9 +24,16 @@ spec:
     metadata:
       labels: { app: postgres }
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: postgres
           image: postgres:16-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
           ports:
             - containerPort: 5432
           envFrom:
@@ -35,6 +42,8 @@ spec:
             - name: data
               mountPath: /var/lib/postgresql/data
               subPath: pgdata   # avoids "lost+found" issues on some CSI drivers
+            - { name: postgres-run, mountPath: /var/run/postgresql }
+            - { name: tmp, mountPath: /tmp }
           resources:
             requests: { cpu: "100m", memory: "128Mi" }
             limits: { cpu: "250m", memory: "256Mi" }
@@ -49,6 +58,8 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim: { claimName: postgres-data }
+        - { name: postgres-run, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }
 ---
 apiVersion: v1
 kind: Service

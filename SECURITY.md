@@ -8,7 +8,7 @@ If private vulnerability reporting is unavailable, contact the repository owner 
 
 ## Deployment scope
 
-Family Budget is intended for self-hosting on a trusted private network. The optional API key protects write routes only; read routes are not authenticated. Deployments exposed outside a trusted network require additional controls such as TLS, full authentication, restrictive CORS, rate limiting, and network policies.
+Family Budget is intended for self-hosting on a trusted private network. A shared API key protects all financial routes, while the health endpoint remains public. Because the browser must receive the shared key, it does not provide per-user identity or protect against an authorized browser user. Deployments exposed outside a trusted network require additional controls such as TLS, individual authentication, rate limiting, and network policies.
 
 ## Secret handling
 

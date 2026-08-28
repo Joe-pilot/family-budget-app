@@ -12,10 +12,20 @@ spec:
     metadata:
       labels: { app: telegram-bot }
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: telegram-bot
           image: family-budget/telegram-bot:latest
           imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
           env:
             - name: TELEGRAM_BOT_TOKEN
               valueFrom:

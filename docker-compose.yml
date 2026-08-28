@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: budget
-      POSTGRES_PASSWORD: budget
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: budget
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -27,12 +27,13 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
     environment:
-      DATABASE_URL: postgresql+psycopg2://budget:budget@postgres:5432/budget
+      DATABASE_URL: postgresql+psycopg2://budget:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/budget
       OLLAMA_HOST: http://ollama:11434
       OLLAMA_MODEL: llama3.2:3b
       DEFAULT_CURRENCY: SAR
       TIMEZONE: Asia/Riyadh
-      API_KEY: ""
+      API_KEY: ${API_KEY:?set API_KEY in .env}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
     ports:
       - "8000:8000"
 
@@ -43,7 +44,7 @@ services:
     environment:
       API_BASE_URL: http://localhost:8000
       DEFAULT_CURRENCY: SAR
-      API_KEY: ""
+      API_KEY: ${API_KEY:?set API_KEY in .env}
     ports:
       - "8080:8080"
 
@@ -56,7 +57,7 @@ services:
       ALLOWED_TELEGRAM_USER_IDS: ${ALLOWED_TELEGRAM_USER_IDS:-}
       API_BASE_URL: http://api:8000
       DEFAULT_CURRENCY: SAR
-      API_KEY: ""
+      API_KEY: ${API_KEY:?set API_KEY in .env}
 
 volumes:
   postgres_data:

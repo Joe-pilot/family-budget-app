@@ -13,12 +13,22 @@ spec:
     metadata:
       labels: { app: budget-api }
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: budget-api
           image: family-budget/api:latest
           imagePullPolicy: IfNotPresent   # set to Never if loading images
                                             # straight into a local cluster
                                             # (kind load / k3s ctr import)
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
           ports:
             - containerPort: 8000
           envFrom:

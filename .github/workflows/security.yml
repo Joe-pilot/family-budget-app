@@ -1,0 +1,54 @@
+name: Security checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  python-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q
+        env:
+          PYTHONPATH: api
+      - run: pip-audit -r api/requirements.txt
+      - run: pip-audit -r telegram-bot/requirements.txt
+      - run: bandit -q -r api/app telegram-bot
+
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --pull -t family-budget/api:ci ./api
+      - run: docker build --pull -t family-budget/web:ci ./web
+      - run: docker build --pull -t family-budget/telegram-bot:ci ./telegram-bot
+      - name: Scan repository configuration and secrets
+        run: >-
+          docker run --rm -v "$PWD:/src:ro" aquasec/trivy:0.74.0
+          config --severity HIGH,CRITICAL --exit-code 1 /src
+      - name: Scan API image
+        run: docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.74.0 image --severity HIGH,CRITICAL --exit-code 1 family-budget/api:ci
+      - name: Scan web image
+        run: docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.74.0 image --severity HIGH,CRITICAL --exit-code 1 family-budget/web:ci
+      - name: Scan Telegram image
+        run: docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.74.0 image --severity HIGH,CRITICAL --exit-code 1 family-budget/telegram-bot:ci
+      - name: Verify containers do not run as root
+        run: |
+          test "$(docker image inspect family-budget/api:ci --format '{{.Config.User}}')" != ""
+          test "$(docker image inspect family-budget/api:ci --format '{{.Config.User}}')" != "0"
+          test "$(docker image inspect family-budget/web:ci --format '{{.Config.User}}')" != ""
+          test "$(docker image inspect family-budget/web:ci --format '{{.Config.User}}')" != "0"
+          test "$(docker image inspect family-budget/telegram-bot:ci --format '{{.Config.User}}')" != ""
+          test "$(docker image inspect family-budget/telegram-bot:ci --format '{{.Config.User}}')" != "0"

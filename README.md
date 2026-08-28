@@ -81,12 +81,14 @@ Stop the stack with `docker compose down`. Add `--volumes` only when you also in
 | `OLLAMA_MODEL` | API | Model used to parse transaction text |
 | `DEFAULT_CURRENCY` | API/web/bot | Currency label displayed to users |
 | `TIMEZONE` | API | Application timezone |
-| `API_KEY` | API/web/bot | Optional key required by write endpoints |
+| `API_KEY` | API/web/bot | Required shared key for financial endpoints |
+| `CORS_ALLOWED_ORIGINS` | API | Comma-separated browser origins allowed by CORS |
+| `ALLOW_INSECURE_NO_AUTH` | API | Explicit isolated-development opt-out; never use in deployment |
 | `TELEGRAM_BOT_TOKEN` | Bot | Token issued by Telegram's BotFather |
 | `ALLOWED_TELEGRAM_USER_IDS` | Bot | Optional comma-separated numeric allowlist |
 | `API_BASE_URL` | Web/bot | Address used to reach the API |
 
-The Compose file includes development defaults for the database. Change all credentials and set `API_KEY` before using the application outside an isolated local environment. Never commit `.env` or a populated Kubernetes Secret.
+The API refuses to start without `API_KEY`. For isolated development only, authentication can be disabled explicitly with `ALLOW_INSECURE_NO_AUTH=true`. Never use that setting in a shared deployment. Never commit `.env` or a populated Kubernetes Secret.
 
 ## Kubernetes deployment
 
@@ -147,7 +149,7 @@ FastAPI publishes the complete interactive OpenAPI reference at `/docs`. Importa
 | `GET` | `/api/summary/categories` | Return year-to-date category totals |
 | `POST` | `/api/agent/log` | Parse and store natural-language entries |
 
-When `API_KEY` is configured, send it in the `X-API-Key` header on write requests. Read endpoints remain unauthenticated and should not be exposed to an untrusted network.
+Send `API_KEY` in the `X-API-Key` header on every financial endpoint. `/api/health` remains public for container probes. The web client receives this shared key at runtime, so it is an access control for a trusted household—not a substitute for individual user accounts or TLS.
 
 ## Project layout
 
@@ -183,6 +185,7 @@ Keep backups encrypted and outside the repository because they contain private f
 
 - Keep the application on a private network; do not publish its ports directly.
 - Set a strong database password and a high-entropy `API_KEY`.
+- Set `CORS_ALLOWED_ORIGINS` to the exact web-dashboard origin; do not use `*`.
 - Restrict Telegram with `ALLOWED_TELEGRAM_USER_IDS`.
 - Store production secrets in a secret manager, SOPS, or Sealed Secrets rather than a plaintext manifest.
 - Treat database dumps, logs, transaction exports, and screenshots as private.
@@ -198,8 +201,14 @@ Before opening a pull request, verify that the Python sources compile and the co
 
 ```bash
 python3 -m compileall -q api telegram-bot
-docker compose config --quiet
+POSTGRES_PASSWORD=test API_KEY=test TELEGRAM_BOT_TOKEN=test docker compose config --quiet
+PYTHONPATH=api pytest -q
+pip-audit -r api/requirements.txt
+pip-audit -r telegram-bot/requirements.txt
+bandit -q -r api/app telegram-bot
 ```
+
+GitHub Actions repeats the tests, dependency audits, static analysis, Trivy configuration and image scans, and non-root container checks on pushes, pull requests, and a weekly schedule. Dependabot monitors Python, Docker, and workflow dependencies.
 
 ## License
 

@@ -6,6 +6,7 @@ metadata:
 data:
   DEFAULT_CURRENCY: "SAR"
   TIMEZONE: "Asia/Riyadh"
+  CORS_ALLOWED_ORIGINS: "http://family-budget.example"
 
   # Ollama model to use for parsing. llama3.2:3b is a good default — fast on
   # CPU, plenty accurate for mapping a sentence onto a fixed category list.

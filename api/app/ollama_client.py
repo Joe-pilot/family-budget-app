@@ -1,6 +1,7 @@
 import os
 import json
 import datetime as dt
+import math
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -90,8 +91,8 @@ def _call_ollama(system_prompt: str, user_text: str) -> dict:
             timeout=OLLAMA_TIMEOUT,
         )
         resp.raise_for_status()
-    except httpx.HTTPError as e:
-        raise ParseError(f"Couldn't reach the AI model (Ollama) — {e}")
+    except httpx.HTTPError:
+        raise ParseError("Couldn't reach the AI model (Ollama). Try again shortly.")
 
     data = resp.json()
     content = data.get("message", {}).get("content", "")
@@ -114,6 +115,8 @@ def _validate(parsed: dict, categories: list[tuple[str, str, str]]) -> list[dict
         raise ParseError(parsed["clarification_needed"])
 
     txns = parsed.get("transactions") or []
+    if not isinstance(txns, list) or len(txns) > 20:
+        raise ParseError("A message can contain at most 20 transactions.")
     if not txns:
         raise ParseError("I didn't find a transaction in that message. Try including an amount, e.g. '45 SAR groceries'.")
 
@@ -143,7 +146,7 @@ def _validate(parsed: dict, categories: list[tuple[str, str, str]]) -> list[dict
 
         if ttype not in VALID_TYPES:
             raise ParseError(f"'{ttype}' isn't a valid type.")
-        if amount <= 0:
+        if not math.isfinite(amount) or amount <= 0 or amount > 999_999_999.99:
             raise ParseError("Amount must be greater than zero.")
 
         clean.append({
@@ -151,9 +154,9 @@ def _validate(parsed: dict, categories: list[tuple[str, str, str]]) -> list[dict
             "type": ttype,
             "category": cat,
             "subcategory": sub,
-            "description": t.get("description", "") or "",
+            "description": str(t.get("description", "") or "")[:500],
             "amount": round(amount, 2),
-            "payment_method": t.get("payment_method", "") or "",
+            "payment_method": (t.get("payment_method", "") or "") if t.get("payment_method", "") in PAYMENT_METHODS else "",
             "notes": "",
         })
     return clean

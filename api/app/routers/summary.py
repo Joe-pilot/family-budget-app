@@ -2,7 +2,7 @@ import calendar
 import datetime as dt
 from collections import defaultdict
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import select, extract, func
 
@@ -28,7 +28,7 @@ def _actuals_by_key(db: Session, year: int, month: int | None = None) -> dict[tu
 
 
 @router.get("/monthly", response_model=list[MonthlyTrendPoint])
-def monthly_trend(year: int = Query(default=dt.date.today().year), db: Session = Depends(get_db)):
+def monthly_trend(year: int = Query(default=dt.date.today().year, ge=2000, le=2100), db: Session = Depends(get_db)):
     stmt = (
         select(
             extract("month", Transaction.date).label("m"),
@@ -56,7 +56,11 @@ def monthly_trend(year: int = Query(default=dt.date.today().year), db: Session =
 
 
 @router.get("/month/{year}/{month}", response_model=MonthDetail)
-def month_detail(year: int, month: int, db: Session = Depends(get_db)):
+def month_detail(
+    year: int = Path(ge=2000, le=2100),
+    month: int = Path(ge=1, le=12),
+    db: Session = Depends(get_db),
+):
     budget_items = db.scalars(select(BudgetItem).order_by(BudgetItem.category, BudgetItem.subcategory)).all()
     actuals = _actuals_by_key(db, year, month)
 
@@ -92,7 +96,7 @@ def month_detail(year: int, month: int, db: Session = Depends(get_db)):
 
 
 @router.get("/categories", response_model=list[CategoryBreakdown])
-def ytd_category_breakdown(year: int = Query(default=dt.date.today().year), db: Session = Depends(get_db)):
+def ytd_category_breakdown(year: int = Query(default=dt.date.today().year, ge=2000, le=2100), db: Session = Depends(get_db)):
     stmt = (
         select(Transaction.category, func.sum(Transaction.amount))
         .where(extract("year", Transaction.date) == year, Transaction.type == "Expense")
