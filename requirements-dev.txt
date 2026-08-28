@@ -2,4 +2,4 @@
 -r telegram-bot/requirements.txt
 pytest==8.4.2
 pip-audit==2.9.0
-bandit==1.8.6
+bandit==1.9.4
