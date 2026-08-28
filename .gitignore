@@ -1,5 +1,10 @@
 .env
+k8s/02-secrets.yaml
 k8s/02-secrets.local.yaml
 web/config.js
 __pycache__/
 *.pyc
+*.sql
+*.dump
+*.backup
+.DS_Store

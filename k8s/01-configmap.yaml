@@ -20,8 +20,6 @@ data:
   # Browser-facing API address — the web UI's JS runs on family members'
   # phones/laptops, OUTSIDE the cluster, so it needs an address reachable
   # from your LAN, not the cluster-internal DNS name above.
-  # EDIT THIS after you know your NodePort / MetalLB IP / OPNsense DNS
-  # override (see README "Expose it" section). Examples:
-  #   http://10.10.20.50:30081        (NodePort, raw node IP)
-  #   http://budget-api.home.arpa:30081   (with an OPNsense Host Override)
-  WEB_API_BASE_URL: "http://CHANGE-ME:30081"
+  # EDIT THIS after you know your NodePort, load-balancer, or ingress address.
+  # Example: http://cluster-node.example:30081
+  WEB_API_BASE_URL: "http://cluster-node.example:30081"

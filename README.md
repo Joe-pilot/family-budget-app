@@ -1,175 +1,206 @@
-# Family Budget — self-hosted, Postgres + Ollama + K8s
+# Family Budget
 
-Log expenses from Telegram or a web dashboard, in plain sentences —
-*"spent 45 on groceries today"* — parsed locally by Ollama, stored in
-Postgres, no cloud dependency once it's running.
+A self-hosted family budgeting application with a web dashboard, Telegram input, and local natural-language transaction parsing.
 
+Family Budget keeps financial data in your own PostgreSQL database. A FastAPI service contains the business logic, while the browser and Telegram bot act as clients. Ollama converts messages such as `spent 45 on groceries today` into structured transactions without requiring a hosted AI service.
+
+> [!IMPORTANT]
+> This project is designed for a trusted private network. It is not hardened for direct exposure to the public internet. See [Security](#security) before deploying it.
+
+## Features
+
+- Monthly budgets for income, expenses, and savings
+- Transaction entry from a responsive web dashboard
+- Natural-language entry through the dashboard or Telegram
+- Monthly trends and category summaries
+- Local inference with Ollama
+- Docker Compose for a single host and Kubernetes manifests for a cluster
+- No external JavaScript CDN dependency
+
+## Architecture
+
+```text
+Web browser ───────┐
+                   ├──▶ FastAPI ──▶ PostgreSQL
+Telegram bot ──────┘       │
+                           └──────▶ Ollama
 ```
-Telegram / Web browser → telegram-bot / web (thin clients)
-                             ↓
-                        Budget API (FastAPI) — all business logic here
-                             ↓                  ↓
-                          Postgres            Ollama (local LLM parsing)
-```
 
-Everything routes through the one API. Telegram and the web UI are both
-thin clients calling the same `/api/agent/log` endpoint — nothing talks to
-Postgres or Ollama directly except the API.
+Only the API communicates with PostgreSQL and Ollama. Both clients use the same API, so transactions and budget data stay consistent.
 
----
+## Requirements
 
-## Two ways to run this
+For the quickest local setup:
 
-1. **`docker-compose`** — fastest way to try it on one machine, or to test
-   changes before pushing to the cluster. Start here.
-2. **`k8s/`** — the real deployment, for your OPNsense-fronted local cluster.
+- Docker Engine with Docker Compose v2
+- Approximately 4 GB of free memory and 3 GB of disk space for the default model and containers
+- A Telegram bot token only if you want to use the Telegram client
 
----
+For Kubernetes, you also need `kubectl`, a cluster, persistent-volume support, and a way to make locally built images available to cluster nodes.
 
-## 1. Try it locally with docker-compose
+## Quick start with Docker Compose
+
+1. Create your local configuration:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Add a Telegram token to `.env`. If you do not want the Telegram client, start only the other services in step 3.
+
+3. Build and start the application:
+
+   ```bash
+   docker compose up -d --build
+   docker compose exec ollama ollama pull llama3.2:3b
+   ```
+
+   Without Telegram:
+
+   ```bash
+   docker compose up -d --build postgres ollama api web
+   docker compose exec ollama ollama pull llama3.2:3b
+   ```
+
+4. Open <http://localhost:8080>. The interactive API documentation is at <http://localhost:8000/docs>.
+
+To restrict Telegram access, send `/whoami` to your bot, copy the returned numeric ID into `ALLOWED_TELEGRAM_USER_IDS` in `.env`, and restart the bot:
 
 ```bash
-cp .env.example .env
-# edit .env: paste your TELEGRAM_BOT_TOKEN from @BotFather
-
-docker compose up -d --build
-docker compose exec ollama ollama pull llama3.2:3b   # first run only, ~2GB
-
-open http://localhost:8080        # web dashboard
+docker compose up -d telegram-bot
 ```
 
-Message your bot on Telegram, send `/whoami`, then:
-```bash
-# edit .env: ALLOWED_TELEGRAM_USER_IDS=<the id it gave you>
-docker compose up -d   # picks up the new env var
-```
+Stop the stack with `docker compose down`. Add `--volumes` only when you also intend to permanently remove the local database and downloaded Ollama models.
 
-Try `spent 45 on groceries today` in Telegram, or use the quick-add bar at
-the top of the web dashboard — both hit the same endpoint, you'll see the
-same row show up in both places.
+## Configuration
 
----
+| Variable | Used by | Purpose |
+|---|---|---|
+| `DATABASE_URL` | API | SQLAlchemy PostgreSQL connection URL |
+| `OLLAMA_HOST` | API | Ollama service URL |
+| `OLLAMA_MODEL` | API | Model used to parse transaction text |
+| `DEFAULT_CURRENCY` | API/web/bot | Currency label displayed to users |
+| `TIMEZONE` | API | Application timezone |
+| `API_KEY` | API/web/bot | Optional key required by write endpoints |
+| `TELEGRAM_BOT_TOKEN` | Bot | Token issued by Telegram's BotFather |
+| `ALLOWED_TELEGRAM_USER_IDS` | Bot | Optional comma-separated numeric allowlist |
+| `API_BASE_URL` | Web/bot | Address used to reach the API |
 
-## 2. Deploy to your K8s cluster
+The Compose file includes development defaults for the database. Change all credentials and set `API_KEY` before using the application outside an isolated local environment. Never commit `.env` or a populated Kubernetes Secret.
 
-### What you need first
+## Kubernetes deployment
 
-- A K8s cluster reachable from wherever you run `kubectl` (k3s, kubeadm,
-  whatever you're running behind OPNsense)
-- Docker images built and available to that cluster (see below — this is
-  the one step that varies by cluster type)
-- A Telegram bot token from `@BotFather`
+Build the three project images:
 
-### Build and load the images
-
-Build all three:
 ```bash
 docker build -t family-budget/api:latest ./api
 docker build -t family-budget/web:latest ./web
 docker build -t family-budget/telegram-bot:latest ./telegram-bot
 ```
 
-Get them onto your cluster's nodes — how depends on what you're running:
+Load or push the images using the method appropriate for your cluster, then update the image names in the deployment manifests if necessary.
 
-| Cluster type | Command |
-|---|---|
-| k3s (single node, most common for this kind of setup) | `docker save family-budget/api:latest \| k3s ctr images import -` (repeat for web, telegram-bot) |
-| kind | `kind load docker-image family-budget/api:latest` (repeat for web, telegram-bot) |
-| minikube | `minikube image load family-budget/api:latest` (repeat for web, telegram-bot) |
-| You run a local registry | `docker push` to it, then set each Deployment's `image:` to `your-registry/...` and `imagePullPolicy: Always` |
-
-### Configure
+Create a local Secret manifest and configure it:
 
 ```bash
-cd k8s
-cp 02-secrets.yaml 02-secrets.local.yaml   # keep the real one out of git
-```
-Edit `02-secrets.local.yaml`:
-- `POSTGRES_PASSWORD` — pick a real password, update `DATABASE_URL` to match
-- `TELEGRAM_BOT_TOKEN` — from BotFather
-- leave `ALLOWED_TELEGRAM_USER_IDS` and `API_KEY` empty for now
-
-Edit `01-configmap.yaml`:
-- `WEB_API_BASE_URL` — the address your family's *browsers* will use to
-  reach the API. With the NodePort setup below, that's
-  `http://<any-node-ip>:30081`. Update it once you know your node's IP on
-  the K8s VLAN (or your OPNsense DNS override — see the earlier networking
-  discussion).
-
-### Apply everything
-
-```bash
-kubectl apply -f 00-namespace.yaml
-kubectl apply -f 01-configmap.yaml
-kubectl apply -f 02-secrets.local.yaml
-kubectl apply -f 10-postgres.yaml
-kubectl apply -f 20-api.yaml
-kubectl apply -f 30-web.yaml
-kubectl apply -f 40-telegram-bot.yaml
-kubectl apply -f 50-ollama.yaml
-
-kubectl -n family-budget get pods -w   # watch until everything is Running
+cp k8s/02-secrets.example.yaml k8s/02-secrets.yaml
 ```
 
-The last file also runs a one-time Job that pulls the Ollama model onto its
-PVC — check progress with:
+Replace every placeholder in `k8s/02-secrets.yaml`. Also set `WEB_API_BASE_URL` in `k8s/01-configmap.yaml` to an API URL reachable from your browsers. The cluster-internal API hostname will not work in a browser.
+
+Apply the manifests in order:
+
 ```bash
+kubectl apply -f k8s/00-namespace.yaml
+kubectl apply -f k8s/01-configmap.yaml
+kubectl apply -f k8s/02-secrets.yaml
+kubectl apply -f k8s/10-postgres.yaml
+kubectl apply -f k8s/20-api.yaml
+kubectl apply -f k8s/30-web.yaml
+kubectl apply -f k8s/40-telegram-bot.yaml
+kubectl apply -f k8s/50-ollama.yaml
+```
+
+Watch the workloads and the one-time model download:
+
+```bash
+kubectl -n family-budget get pods -w
 kubectl -n family-budget logs job/ollama-pull-model -f
 ```
-This needs internet egress once (see the earlier OPNsense firewall rule);
-after that, Ollama runs fully offline.
 
-### First-run whitelist
+The included services use NodePorts `30080` for the web interface and `30081` for the API. Restrict them to a trusted network or replace them with your own ingress and authentication setup.
+
+## API overview
+
+FastAPI publishes the complete interactive OpenAPI reference at `/docs`. Important routes include:
+
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/api/health` | Service health check |
+| `GET` | `/api/categories` | List budget categories |
+| `GET`, `POST` | `/api/transactions` | List or create transactions |
+| `DELETE` | `/api/transactions/{id}` | Delete a transaction |
+| `GET` | `/api/budget` | List budget targets |
+| `PUT` | `/api/budget/{id}` | Update a budget target |
+| `GET` | `/api/summary/monthly` | Return a year's monthly trend |
+| `GET` | `/api/summary/month/{year}/{month}` | Return one month's details |
+| `GET` | `/api/summary/categories` | Return year-to-date category totals |
+| `POST` | `/api/agent/log` | Parse and store natural-language entries |
+
+When `API_KEY` is configured, send it in the `X-API-Key` header on write requests. Read endpoints remain unauthenticated and should not be exposed to an untrusted network.
+
+## Project layout
+
+```text
+api/             FastAPI backend, models, category catalog, and Ollama client
+web/             Static browser application served by Nginx
+telegram-bot/    Telegram long-polling client
+k8s/             Kubernetes resources in deployment order
+docker-compose.yml
+```
+
+The category catalog is defined in `api/app/catalog.py`. New entries are seeded when the API starts; existing transactions and budget values are retained.
+
+## Operations
+
+View logs:
 
 ```bash
-# message your bot on Telegram: /whoami
-# edit k8s/02-secrets.local.yaml: ALLOWED_TELEGRAM_USER_IDS=<id>,<id2>,...
-kubectl apply -f 02-secrets.local.yaml
-kubectl -n family-budget rollout restart deployment/telegram-bot
+docker compose logs -f api
+# or
+kubectl -n family-budget logs -f deployment/budget-api
 ```
 
-### Reach the web dashboard
+Create a PostgreSQL backup from Compose:
 
-With the NodePort manifests as given: `http://<any-node-ip>:30080`.
-For a cleaner address, see the OPNsense DNS override / MetalLB notes from
-the earlier networking discussion — swap `30-web.yaml`'s Service `type`
-from `NodePort` to `LoadBalancer` once MetalLB is installed, and update
-`WEB_API_BASE_URL` to match.
-
----
-
-## Repo layout
-
-```
-api/              FastAPI backend — owns Postgres, the category catalog,
-                  budget targets, and Ollama-based parsing. Everything
-                  else is a thin client of this.
-web/              Static SPA (vanilla JS + vendored Chart.js — zero
-                  external CDN dependencies, works with no internet egress)
-telegram-bot/     Long-polling bot, calls the API's /api/agent/log
-k8s/              One manifest per concern, numbered in apply order
-docker-compose.yml   Local dev/test — same topology as k8s/
+```bash
+docker compose exec -T postgres pg_dump -U budget budget > family-budget.sql
 ```
 
-## Extending the category list
+Keep backups encrypted and outside the repository because they contain private financial data. Test restoration regularly before relying on a backup process.
 
-The catalog lives in one place: `api/app/catalog.py`. Add a line, restart
-the API — it seeds new categories into Postgres automatically (existing
-rows are untouched, so your budget targets and transaction history are
-safe). The web UI and Telegram bot both pull categories from the API, so
-they never need separate updates.
+## Security
 
-## Day-to-day operations
+- Keep the application on a private network; do not publish its ports directly.
+- Set a strong database password and a high-entropy `API_KEY`.
+- Restrict Telegram with `ALLOWED_TELEGRAM_USER_IDS`.
+- Store production secrets in a secret manager, SOPS, or Sealed Secrets rather than a plaintext manifest.
+- Treat database dumps, logs, transaction exports, and screenshots as private.
+- Review CORS, TLS, authentication, and network policies before supporting access from outside your trusted network.
 
-- **Logs**: `kubectl -n family-budget logs -f deployment/budget-api` (swap
-  the deployment name for web/telegram-bot/postgres/ollama)
-- **New family member**: they DM the bot `/whoami`, you add their ID to
-  `ALLOWED_TELEGRAM_USER_IDS` in the secret, `kubectl apply` +
-  `rollout restart deployment/telegram-bot`
-- **Change the model**: edit `OLLAMA_MODEL` in `01-configmap.yaml`,
-  `kubectl apply`, then re-run `kubectl apply -f 50-ollama.yaml` to trigger
-  a fresh pull job, then `kubectl rollout restart deployment/budget-api`
-  (and telegram-bot) to pick up the new env var
-- **Back up your data**: it's all in the `postgres-data` PVC — a normal
-  `pg_dump` against the `postgres` pod is all you need; nothing else in the
-  system holds state
+If a secret is committed, removing it in a later commit is not sufficient. Revoke or rotate it immediately and clean it from Git history before publishing. See [SECURITY.md](SECURITY.md) for private vulnerability reporting guidance.
+
+## Contributing
+
+Issues and pull requests are welcome. Please avoid including real financial records, user IDs, tokens, internal hostnames, or screenshots with personal information in examples, tests, issues, and commit history.
+
+Before opening a pull request, verify that the Python sources compile and the container configuration resolves:
+
+```bash
+python3 -m compileall -q api telegram-bot
+docker compose config --quiet
+```
+
+## License
+
+No open-source license has been selected yet. Until a license file is added, copyright law reserves reuse and redistribution rights to the copyright holder.
