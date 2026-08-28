@@ -14,7 +14,7 @@ jobs:
   python-security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -30,7 +30,7 @@ jobs:
   containers:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: docker build --pull -t family-budget/api:ci ./api
       - run: docker build --pull -t family-budget/web:ci ./web
       - run: docker build --pull -t family-budget/telegram-bot:ci ./telegram-bot
